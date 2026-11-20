@@ -84,6 +84,8 @@ TERMS = [
     ("agent-transcripts", r"agent-transcripts|\.cursor/projects"),
     ("`/loop`", r"`/loop`|\s/loop\b"),
     ("Canvas", r"\bCanvas\b"),
+    ("Project worker", r"Project workers?\b"),
+    ("in CI", r"locally and in CI"),
     ("Cursor-only features", r"Bugbot|Cursor [Aa]utomation|cursor\.(sh|com)/automations|[Cc]loud [Aa]gent|built-in PR tool|SendToUser|update_state"),
 ]
 ROUTE_KEY = "Run another pstack skill"

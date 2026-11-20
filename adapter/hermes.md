@@ -28,6 +28,8 @@ pstack skills use Cursor names. In Hermes, read this file once per session befor
 | Report-only or read-only run of a skill that edits | Do not edit. List each edit or deletion the skill would make as a proposed change (file, line, before, after), then stop. |
 | A skill "fails" (`fail /<name>`) | Say so in the reply's first line, `Failed <name>: <reason>`, with the open items. A child puts that line first in its summary. Nothing else is needed. |
 | `subagent_type: generalPurpose` | A plain `delegate_task` entry. |
+| A Project worker, agent mode ("readonly strips MCP") | A Project worker is a `delegate_task` entry in its own worktree (see `environment: "cloud"`). Hermes children keep the session's tools, so agent mode needs nothing extra. |
+| "Run the same command locally and in CI", a human's approval on an exception | Run it locally. If the repo has CI, add the command there; if it has none, say so and name the command a CI job should run. The human approval is the user's yes in this chat, recorded in the exception comment. |
 | `subagent_type: "poteto-agent"` | A `delegate_task` entry whose `context` starts with "Read `<pstack>/agents/poteto-agent.md`, then `<pstack>/skills/poteto-mode/SKILL.md` in full, before any work." Give the absolute paths. |
 | `subagent_type: "comment-sicko"` | A `delegate_task` entry whose `context` starts with "Read `<pstack>/agents/comment-sicko.md` and follow it." |
 | The `model:` line in an agent file, or any model slug passed to `Task` | Omit it. `delegate_task` has no per-task model; children run on `delegation.model` from config, else the session model. Say so once per run. |
