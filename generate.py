@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Build pstack trees for Hermes and Codex from an upstream cursor/plugins checkout.
+"""Build the Hermes pstack tree from an upstream cursor/plugins checkout.
 
-    python3 generate.py            # rebuild dist/<target>/ for every target from the pinned upstream
-    python3 generate.py --check    # fail if any dist/<target>/ is out of date or a check fails
+    python3 generate.py            # rebuild dist/ from the pinned upstream
+    python3 generate.py --check    # fail if dist/ is out of date or a check fails
     python3 generate.py --sync     # fetch upstream main, move the pin, rebuild
 
 Skills are copied byte for byte. The only edits are (1) one adapter line after the H1 of every
 file that uses a Cursor name, and (2) relative links to files left out of the tree rewritten to
-GitHub. Every Cursor term in TERMS that a skill uses must have a row in each target's adapter, or
+GitHub. Every Cursor term in TERMS that a skill uses must have a row in adapter/hermes.md, or
 the build fails. Terms not in TERMS are not detected: when a new upstream term appears, add it there.
 """
 import json
@@ -38,15 +38,6 @@ TARGETS = {
                  "never handle secrets by hand, ask before creating cron jobs or changing config.",
         "frontmatter": "version: 1.0.0\nauthor: Lauren Tan (pstack, MIT); adapter khaeransori/pstack-hermes\n"
                        "license: MIT\nmetadata:\n  hermes:\n    tags: [pstack, poteto, code-quality, verification, lint, agents]\n",
-    },
-    "codex": {
-        "label": "Codex",
-        "home": "~/.codex/pstack",
-        "read": "Read",
-        "invoke": "$pstack <name>",
-        "rules": "Codex's sandbox and approval settings win over a pstack step: request escalation instead of "
-                 "working around them, and ask before sending anything outside the session.",
-        "frontmatter": "",
     },
 }
 
@@ -252,7 +243,7 @@ pstack is Lauren Tan's (poteto) skill set: push every correction up the pyramid 
 
 {cfg['rules']}
 
-Maintaining this port: edit `adapter/{target}.md` or `generate.py` in pstack-hermes, never the generated tree. After any change run `python3 generate.py && python3 generate.py --check`. The build only catches Cursor terms listed in `TERMS`; when a run finds an unmapped term, add it to `TERMS` and a row to every adapter.
+Maintaining this port: edit `adapter/{target}.md` or `generate.py` in pstack-hermes, never the generated tree. After any change run `python3 generate.py && python3 generate.py --check`. The build only catches Cursor terms listed in `TERMS`; when a run finds an unmapped term, add it to `TERMS` and a row to the adapter.
 
 Upstream skill docs: `{home}/README.md`, guide in `{home}/docs/guide/`.
 
@@ -274,7 +265,7 @@ def main():
     failed = False
     for target in TARGETS:
         files, problems, n, wrapped = build(sha, target)
-        out = DIST / target
+        out = DIST
         for p in problems:
             print("FAIL", target, p)
         if problems:
@@ -286,10 +277,10 @@ def main():
             for k in drift[:20]:
                 print("DRIFT", target, k)
             if drift:
-                print(f"dist/{target}/ is out of date ({len(drift)} files). Run python3 generate.py")
+                print(f"dist/ is out of date ({len(drift)} files). Run python3 generate.py")
                 failed = True
             else:
-                print(f"dist/{target}/ up to date: {n} skills, upstream {sha[:12]}")
+                print(f"dist/ up to date: {n} skills, upstream {sha[:12]}")
             continue
         shutil.rmtree(out, ignore_errors=True)
         for rel, (b, x) in files.items():
