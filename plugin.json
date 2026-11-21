@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "pstack-hermes",
+  "version": "0.15.46",
+  "description": "pstack (cursor/plugins, MIT, Lauren Tan) for Hermes: the full upstream skill set, with a Cursor-to-Hermes tool adapter bundled in each skill.",
+  "author": {
+    "name": "Khaer Ansori",
+    "url": "https://github.com/khaeransori/pstack-hermes"
+  },
+  "homepage": "https://github.com/khaeransori/pstack-hermes",
+  "repository": "https://github.com/khaeransori/pstack-hermes",
+  "license": "MIT",
+  "keywords": [
+    "pstack",
+    "poteto-mode",
+    "workflow",
+    "principles",
+    "verification",
+    "subagents",
+    "unslop"
+  ]
+}

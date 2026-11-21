@@ -1,6 +1,6 @@
 # pstack in Hermes
 
-pstack skills use Cursor names. In Hermes, read this file once per session before you follow a pstack skill, then map each Cursor name in the skill with the tables below. This copy ships inside a skill installed from the Hermes Skills Hub (`khaeransori/pstack-hermes`, pstack 0.15.46, upstream `d42aff08aa58`), so there is no `<pstack>` tree. Map its paths: `<pstack>/skills/<name>/` is the installed `<name>` skill folder (`skill_view(name)` shows its path); `<pstack>/agents/<file>` is `references/agents/<file>` in the skill you are running; `<pstack>/plugin.json` and `<pstack>/docs/` are on GitHub at https://github.com/cursor/plugins/tree/d42aff08aa58965d2735c4ead61a9af82b89d0d0/pstack. Give absolute paths to children. If a Cursor field has no row, drop it and say so. Never pass a field or value the tool schema rejects.
+pstack skills use Cursor names. In Hermes, read this file once per session before you follow a pstack skill, then map each Cursor name in the skill with the tables below. This copy ships inside a skill from `khaeransori/pstack-hermes` (pstack 0.15.46, upstream `d42aff08aa58`), installed as a Hermes plugin or from the Skills Hub, so there is no `<pstack>` tree. Map its paths: `<pstack>/skills/<name>/` is the `<name>` skill's folder (`skill_view` shows its path); `<pstack>/agents/<file>` is `references/agents/<file>` in the skill you are running; `<pstack>/plugin.json` and `<pstack>/docs/` are on GitHub at https://github.com/cursor/plugins/tree/d42aff08aa58965d2735c4ead61a9af82b89d0d0/pstack. Give absolute paths to children. If a Cursor field has no row, drop it and say so. Never pass a field or value the tool schema rejects.
 
 ## Tools
 
@@ -9,7 +9,7 @@ pstack skills use Cursor names. In Hermes, read this file once per session befor
 | `Task` | `delegate_task`. One entry in `tasks` per subagent; several entries run in parallel. Children know nothing of this chat, so put every path, constraint, and the pstack skill to read in `context`. |
 | `AskQuestion` | `clarify`. One call can hold up to 5 independent questions. When `clarify` is not offered (cron, one-shot runs), ask in plain text and stop. |
 | Open a todolist, or copy steps into the todolist tool | `todo_list` (load it with `tool_describe` first). Otherwise keep the list in your reply and update it at each phase. |
-| Run another pstack skill (`/name` or "the **name** skill") | `skill_view(name)` and follow it. If it is not installed, ask the user to run `hermes skills install khaeransori/pstack-hermes/skills/<name> --category pstack` (one-time). When you tell the user to type it, write `pstack <name>`. |
+| Run another pstack skill (`/name` or "the **name** skill") | `skill_view("pstack-hermes:<name>")` when pstack came as the `pstack-hermes` plugin (`hermes plugins install`), else `skill_view("<name>")`, and follow it. If neither is installed, ask the user to run `hermes plugins install pstack-hermes` (one-time). When you tell the user to type it, write `pstack <name>`. |
 | `Read` | `read_file` |
 | `Grep`, `Glob` | `search_files` (`target: "content"` for Grep, `target: "files"` for Glob). |
 | `Shell`, a terminal command | `terminal`. Long runs: `background: true` with `notify: true`. |
