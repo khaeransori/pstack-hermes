@@ -39,6 +39,16 @@ The `upstream sync` workflow does this every day. It moves the pin only when som
 
 Tags are `v<pstack version>-hermes.<N>`, for example `v0.15.46-hermes.1`. A new pstack version starts again at `.1`. Our own adapter or generator changes, and a pin move that keeps the pstack version, bump `N`. `./next-tag.sh` prints the next tag. The exact upstream commit is in `UPSTREAM_PIN` and `dist/UPSTREAM.json`.
 
+## Hermes plugin (Marketplace)
+
+The repo root is also a portable Agent Plugin: `plugin.json` plus the `skills/` build below. Once listed in the Hermes plugin catalog it installs by name, and every skill loads as `pstack-hermes:<name>` without being copied into `~/.hermes/skills/`:
+
+```sh
+hermes plugins install pstack-hermes
+```
+
+Before then, install it at a release commit with `hermes plugins install https://github.com/khaeransori/pstack-hermes.git --ref <sha>`.
+
 ## Skills Hub
 
 `skills/` is a second build of the same pin for the [Hermes Skills Hub](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills). It is committed so the hub can read it. Each skill is a self-contained folder with the adapter in `references/pstack-hermes-adapter.md` and the agent files it uses in `references/agents/`. Every folder passes the Skills Guard as `safe` for community installs.

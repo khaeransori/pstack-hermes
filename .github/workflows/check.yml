@@ -13,5 +13,5 @@ jobs:
       - run: python3 generate.py
       - run: python3 generate.py --check
       - run: |
-          git status --porcelain -- skills
-          test -z "$(git status --porcelain -- skills)"
+          git status --porcelain -- skills plugin.json
+          test -z "$(git status --porcelain -- skills plugin.json)"

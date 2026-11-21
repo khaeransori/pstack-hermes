@@ -53,7 +53,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           version=$(python3 -c 'import json; print(json.load(open("dist/UPSTREAM.json"))["pstack_version"])')
           head="${{ steps.diff.outputs.head }}"
-          git add UPSTREAM_PIN skills
+          git add UPSTREAM_PIN skills plugin.json
           git commit -m "Bump upstream pin to cursor/plugins ${head:0:8} (pstack ${version})"
           tag=$(./next-tag.sh)
           git tag -a "$tag" -m "pstack ${version}, cursor/plugins ${head}"
