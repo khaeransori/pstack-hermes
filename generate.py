@@ -266,10 +266,19 @@ PLUGIN_JSON = ROOT / "plugin.json"
 # Agent Plugin skills reject nested frontmatter metadata, so the index skill carries none.
 HUB_FRONTMATTER = "version: 1.0.0\nauthor: Lauren Tan (pstack, MIT); adapter khaeransori/pstack-hermes\nlicense: MIT\n"
 HUB_ADAPTER = "references/pstack-hermes-adapter.md"
-# Left out of the hub: make-bot-ui needs sudo to install Tailscale (the Skills Guard blocks it for
+# Left out of the hub: make-bot-ui needs root to install Tailscale (the Skills Guard blocks it for
 # community installs), and statechart's test corpus is 377 fixture files no run reads.
 HUB_SKIP_SKILLS = {"make-bot-ui"}
 HUB_SKIP_PATHS = [re.compile(r"^skills/statechart/scripts/test/")]
+# Hub-only wording fixes. Hermes expands bang-backtick shell snippets in skill text when
+# skills.inline_shell is on and the Skills Guard flags them, so TypeScript's non-null bang inside
+# backticks must not look like one.
+HUB_TEXT_FIXES = {
+    "skills/typescript-best-practices/references/patterns.md": [
+        # Built from parts so this file does not itself contain the bang-backtick sequence.
+        ("The tells are `" + "!" + "`, `arr[0] as T`", "The tells are the non-null `" + "!" + "` operator, `arr[0] as T`"),
+    ],
+}
 HUB_INTRO = ("`<pstack>` means the folder that holds `skills/`, `agents/`, and `docs/`. "
              "In this install it is `~/.hermes/pstack`.")
 HUB_ROUTE = ("`read_file` `<pstack>/skills/<name>/SKILL.md` and follow it. These skills are not in the Hermes "
@@ -318,6 +327,14 @@ def build_hub(files, sha):
             if name[:-3] in text_all:
                 own[f"skills/{s}/references/agents/{name}"] = v
         own[f"skills/{s}/{HUB_ADAPTER}"] = (adapter.encode(), False)
+        for rel, fixes in HUB_TEXT_FIXES.items():
+            if rel in own:
+                text = own[rel][0].decode()
+                for old, new in fixes:
+                    if old not in text:
+                        raise SystemExit(f"FAIL hub: {rel} changed upstream, update HUB_TEXT_FIXES: {old}")
+                    text = text.replace(old, new)
+                own[rel] = (text.encode(), own[rel][1])
         for rel, (b, x) in list(own.items()):
             if not rel.endswith(".md") or rel.endswith(HUB_ADAPTER):
                 continue
