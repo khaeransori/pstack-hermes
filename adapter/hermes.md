@@ -84,6 +84,7 @@ After a routed batch returns, read each result's `route` (provider and model the
 - If it differs from the route you asked for, or `fallback_activated` is true, say so in your report.
 - If that happened to the judge and its provider now matches the parent's vendor, the vendor rule broke: discard its verdict, treat Phase C as skipped, and say so.
 - A refused entry (`route.refused: true`) is a routing error, not a model failure. For a judge, move to the next pool entry. For anything else, re-map the slug once with the steps above, or omit `option`, and retry that entry once.
+- An entry that failed before doing any work with a connection or access error (HTTP 401, 403 or 404, a timeout, DNS or TLS failure, "provider unavailable") lost its route, for example because a VPN-only endpoint dropped mid-session. Treat that route as missing from the enum for the rest of the run: a panel seat on it is unrouted (drop it while at least two seats remain), a judge moves to the next pool entry, and any other entry is re-mapped once with the steps above. Do not retry the same route. Name the route and the error in your report.
 
 Panels larger than `delegation.max_concurrent_children` run in batches.
 
