@@ -33,9 +33,48 @@ python3 generate.py --check   # verify dist/ matches the pin and every Cursor te
 
 The symlinks point into `dist/`, so a rebuild updates the installed skills in place. The term check covers only the Cursor terms listed in `TERMS` in `generate.py`. If a new upstream term shows up in a run, add it to `TERMS`, add a row to the adapter, and rebuild.
 
+## Per-role models (optional)
+
+pstack picks a model per role: Opus at `xhigh` for features and judgment, a three-vendor panel for `arena` and `interrogate`, a cross-vendor judge. Plain Hermes runs every subagent on one model. With Nous's official [advanced-delegation](https://github.com/NousResearch/hermes-official-plugins/tree/main/advanced-delegation) plugin (Hermes 0.22.5 or newer), each `delegate_task` entry can pick a named model route, and the adapter maps pstack's model slugs onto those routes.
+
+Name routes `<family>-<effort>`: the family is `opus`, `sonnet`, `haiku`, `fable`, `gpt`, `gemini`, or `grok`, and the effort is `xhigh`, `high`, `medium`, or `low`. The adapter maps `claude-opus-5-5-xhigh-fast` to `opus-xhigh`, `gemini-4-neon-xhigh` to `gemini-xhigh`, and so on. When the exact effort has no route (after a lower budget, say), it uses the same family's nearest route and says so; it never switches family. An example that covers pstack's defaults; add `opus-medium`, `fable-medium`, or `gemini-high` routes if you run a `medium` or `small` budget and want those levels exactly:
+
+```yaml
+# ~/.hermes/config.yaml
+delegation:
+  backend: model_map
+  backends:
+    model_map:
+      options:
+        - name: opus-xhigh
+          description: "Hardest work: features, refactors, bug hunts, judgment."
+          provider: anthropic
+          model: claude-opus-5-5
+          reasoning_effort: xhigh
+        - name: opus-high
+          description: "Strong and faster: swarm workers, panel seats, judging."
+          provider: anthropic
+          model: claude-opus-5-5
+          reasoning_effort: high
+        - name: fable-high
+          description: "Second Anthropic family for panel seats."
+          provider: anthropic
+          model: claude-fable-5-2
+          reasoning_effort: high
+        - name: gemini-xhigh
+          description: "Non-Anthropic panel seat and cross-vendor judge."
+          provider: openrouter
+          model: google/gemini-4-neon
+          reasoning_effort: xhigh
+```
+
+Check each `model` id with `hermes model` before saving, since provider ids differ from pstack's slugs. Drop the `gemini-xhigh` route if you have no OpenRouter or Google key: panels then run Anthropic-only and the agent says so. Everything else needs no extra key. Set it up with `hermes plugins install advanced-delegation`, then `hermes delegation config` or the YAML above, then start a new session and run `pstack setup-pstack` to write the role lines.
+
+Without the plugin everything still works on one model, as described below.
+
 ## Limits in Hermes
 
-- **One model.** `delegate_task` has no model setting per task, so multi-vendor panels (`arena`, `interrogate`) run with one model and a different framing for each seat. The agent says so when this happens.
+- **One model without the plugin.** Plain `delegate_task` has no model setting per task, so multi-vendor panels (`arena`, `interrogate`) run with one model and a different framing for each seat. The agent says so when this happens. See Per-role models above.
 - **No nesting.** A child cannot spawn its own children or call `clarify`. The chat that runs the skill owns all spawning.
 - **House rules take priority.** The agent still asks before sending anything outside the chat, creating cron jobs, or changing config, even when a playbook says "don't ask".
 - Bugbot, cloud agents, Canvas, and Automations are skipped with a one-line note. Worktrees, `gh`, and cron (after asking) stand in where they fit.

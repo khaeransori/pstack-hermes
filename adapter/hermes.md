@@ -22,7 +22,7 @@ pstack skills use Cursor names. In Hermes, read this file once per session befor
 | Cursor | Hermes |
 | --- | --- |
 | Nesting | Children cannot spawn children (`delegation.max_spawn_depth: 1`) and cannot call `clarify`. The chat that runs the pstack skill owns every spawn. When a skill tells a delegate to spawn its own subagents, prefer returning so the parent spawns them. If the delegate does the work itself, it says in its report that the pass was not independent (no fresh perspective), so the parent can rerun it as a real child. |
-| Reasoning level for a subagent | `delegate_task` has no effort field. Put the level in `context` ("work at high effort: check every claim"). The run-wide default is `delegation.reasoning_effort` in config; never change it without asking. |
+| Reasoning level for a subagent | Routed: pick the route whose name ends in that level (see Models). Single-model: `delegate_task` has no effort field, so put the level in `context` ("work at high effort: check every claim"). The run-wide default is `delegation.reasoning_effort` in config; never change it without asking. |
 | "Inspect its report and diff" | `delegate_task` returns a summary, not a diff. The parent runs `git diff` / `git status --porcelain` with `terminal` in the child's checkout or worktree, and reviews that, not the summary. |
 | Approval modes: interactive, unattended, eval, caller pre-approval | Interactive: the parent asks with `clarify`. A child never asks; it returns the decision as an open item. Unattended (cron, background, "don't ask me"): take the skill's unattended branch, and still stop for anything in the house rules below. Pre-approval reaches a child only as written text in its `context`. |
 | Report-only or read-only run of a skill that edits | Do not edit. List each edit or deletion the skill would make as a proposed change (file, line, before, after), then stop. |
@@ -30,9 +30,9 @@ pstack skills use Cursor names. In Hermes, read this file once per session befor
 | `subagent_type: generalPurpose` | A plain `delegate_task` entry. |
 | A Project worker, agent mode ("readonly strips MCP") | A Project worker is a `delegate_task` entry in its own worktree (see `environment: "cloud"`). Hermes children keep the session's tools, so agent mode needs nothing extra. |
 | "Run the same command locally and in CI", a human's approval on an exception | Run it locally. If the repo has CI, add the command there; if it has none, say so and name the command a CI job should run. The human approval is the user's yes in this chat, recorded in the exception comment. |
-| `subagent_type: "poteto-agent"` | A `delegate_task` entry whose `context` starts with "Read `<pstack>/agents/poteto-agent.md`, then `<pstack>/skills/poteto-mode/SKILL.md` in full, before any work." Give the absolute paths. |
+| `subagent_type: "poteto-agent"` | A `delegate_task` entry whose `context` starts with the kickoff line poteto-mode requires (`Read <path>/worker.md before anything else.`), then "Read `<pstack>/agents/poteto-agent.md`, then `<pstack>/skills/poteto-mode/SKILL.md` in full, before any work." Give the absolute paths. Its model comes from the role line, else the agent file's `model:`, mapped with Models. An `inherit-parent` role still gets these read lines; only `option` is dropped. |
 | `subagent_type: "comment-sicko"` | A `delegate_task` entry whose `context` starts with "Read `<pstack>/agents/comment-sicko.md` and follow it." |
-| The `model:` line in an agent file, or any model slug passed to `Task` | Omit it. `delegate_task` has no per-task model; children run on `delegation.model` from config, else the session model. Say so once per run. |
+| The `model:` line in an agent file, or any model slug passed to `Task` | Map it to a route with the Models section and pass it as the entry's `option`. Single-model: omit it, and say once per run that children run on one model. |
 | `readonly: true` | A normal entry whose `context` says "Read-only: do not edit, create, or delete files, and do not commit." After it returns, run `git status --porcelain` and revert anything it touched. |
 | `readonly: false` | A normal entry. It inherits the session's MCP servers. |
 | `environment: "cloud"` | A git worktree on this machine: `git worktree add <path> -b <branch> <base>`, and name the path in `context`. Remove it when the worker is done. |
@@ -45,24 +45,58 @@ pstack skills use Cursor names. In Hermes, read this file once per session befor
 
 ## Models
 
-Hermes runs every child on one model, so pstack's per-role and multi-vendor choices collapse.
+Hermes has two modes. Check which one this session has before the first spawn: look at the `delegate_task` schema's task items.
 
-| Cursor | Hermes |
-| --- | --- |
-| `claude-<family>-<version>-<effort>[-fast]`, `gpt-*`, `grok-*`, `gemini-*`, any other slug | Omit. The child runs on the configured delegation model. |
-| `auto` or `inherit-parent` | Omit. |
-| A panel (arena runners, interrogate reviewers, cross-judge pool) of N different vendors | Still spawn N children, one per seat, but they share one model. Give each seat a distinct framing in `context` (for example "assume the design is wrong", "optimize for the user", "optimize for the reader") and tell the user the panel was single-vendor. A cross-vendor judge rule cannot be met, so the parent judges and says so. |
-| The `pstack-models.mdc` rule, `~/.cursor/rules/pstack-models.mdc` | `~/.hermes/pstack-models.md`. Read it at the start of a pstack run if it exists. Only its `# budget` line has an effect: pass the matching level as guidance in each child's `context` ("think at high effort"). |
-| A role value `<model> <effort>` | Keep only the effort, as guidance in `context`. |
+- **Routed.** The items have an `option` property (the `advanced-delegation` plugin, `delegation.backend: model_map`). Its enum is the list of routes, and its description gives `name: description` for each. Each entry can run on a different model.
+- **Single-model.** There is no `option` property. Every child runs on `delegation.model`, else the session model, so pstack's per-role and multi-vendor choices collapse.
+
+A `profile` property instead of `option` means profile routes. Treat the session as single-model for pstack, and say so.
+
+### Route names
+
+pstack expects routes named `<family>-<effort>`, all lowercase: the family is a model family (`opus`, `sonnet`, `haiku`, `fable`, `gpt`, `gemini`, `grok`), and the effort is `xhigh`, `high`, `medium`, or `low`. Examples: `opus-xhigh`, `opus-high`, `fable-high`, `gemini-xhigh`. The effort is the last token, so setup-pstack's budget step works as written. The family names the vendor: `opus`, `sonnet`, `haiku`, and `fable` are Anthropic, `gpt` is OpenAI, `gemini` is Google, `grok` is xAI. A route whose name does not follow this shape is still usable when the user names it in a role line, but never pick it from a slug.
+
+### Mapping a slug to a route
+
+Do this for every slug: an agent file's `model:`, a role line, a skill default, a panel entry, a judge-pool entry.
+
+1. Family and effort. `claude-<family>-<version>-<effort>[-fast]` is family `<family>` (`opus`, `fable`, ...). `gpt-*`, `gemini-*`, `grok-*` are families `gpt`, `gemini`, `grok`. The effort is the last token, or the one before a trailing `fast`. Drop the version and `-fast`; the route's own `service_tier` decides speed, so never set one.
+2. Exact route. If `<family>-<effort>` is in the enum, use it.
+3. Nearest route of the same family. Otherwise take the same family's route closest in effort, preferring the lower one on a tie, and say which slug moved to which route. This is how a budget or a "lower it for routine work" step lands on a real route.
+4. No route for the family. The slug is unrouted; see the rows below. Never fill the gap with another family.
+
+A route name written directly (in a role line, such as `opus-high` or a user's `deep`) is used as is when it is in the enum; otherwise apply steps 1 to 4 to it.
+
+| Cursor | Hermes, routed | Hermes, single-model |
+| --- | --- | --- |
+| `claude-<family>-<version>-<effort>[-fast]`, such as `claude-opus-5-5-xhigh-fast`; `gpt-*`, `gemini-*`, `grok-*` slugs | `option` set to the route from the steps above, such as `opus-xhigh`. | Omit. Put the effort in `context`. |
+| An unrouted slug outside a panel | Omit `option`, put the effort in `context` ("work at xhigh effort"), and say where it ran: the `model_map` default route if one is set, else the session model. | Omit, as above. |
+| `auto` or `inherit-parent` | Omit `option` and put the role's effort, if the budget names one, in `context`. It runs on the default route, else the session model. | Omit. |
+| A panel (arena runners, interrogate reviewers) | One entry per seat, each on its route. An unrouted seat is dropped, as arena says for a rejected slug, while at least two seats remain; a seat kept with no route runs like an unrouted slug. Every two seats that share a model (same route, or no route next to each other or next to a route on the session model) get distinct framings in `context` ("assume the design is wrong", "optimize for the user", "optimize for the reader"). Tell the user each seat's route, which seats were dropped, and whether the panel was single-vendor. | Still spawn N children, one per seat, sharing one model, each with a distinct framing in `context`. Tell the user the panel was single-vendor. |
+| The cross-vendor judge (arena Phase C, a cross-judge pool) | Map the pool entries in order. The judge is the first one whose route's vendor differs from the parent's (the session model's vendor; `opus`, `sonnet`, `haiku`, `fable` are all Anthropic). If the vendor of a route is unclear (a name outside the convention), check its provider with `hermes delegation config --show`. If no entry qualifies, skip the judge and say so, as arena does. Never let the parent stand in as judge. | The rule cannot be met: skip the judge and say so. The parent still scores candidates in Phase D. |
+| The `pstack-models.mdc` rule, `~/.cursor/rules/pstack-models.mdc` | `~/.hermes/pstack-models.md`. Read it at the start of a pstack run if it exists. A role line beats a skill default and an agent file's `model:`. | The same file. Only its `# budget` line has an effect: pass the matching level as guidance in each child's `context`. |
+| A role value `<model> <effort>` | The route for that model and effort, by the steps above. | Keep only the effort, as guidance in `context`. |
+
+### Checking what ran
+
+After a routed batch returns, read each result's `route` (provider and model the child ran on).
+
+- If it differs from the route you asked for, or `fallback_activated` is true, say so in your report.
+- If that happened to the judge and its provider now matches the parent's vendor, the vendor rule broke: discard its verdict, treat Phase C as skipped, and say so.
+- A refused entry (`route.refused: true`) is a routing error, not a model failure. For a judge, move to the next pool entry. For anything else, re-map the slug once with the steps above, or omit `option`, and retry that entry once.
+
+Panels larger than `delegation.max_concurrent_children` run in batches.
 
 ## setup-pstack
 
 Follow its steps with these changes:
 
-- Detect. The only models are the session model and `delegation.model` (`hermes config get delegation.model`; empty means the session model). Say that per-role models are not available in Hermes.
-- Budget. Still ask for the budget with `clarify`.
-- Write. Write `~/.hermes/pstack-models.md` with the comment lines, the `# defaults: 3` line, the `# budget` line, and the role lines from step 5, with every value set to `inherit-parent`. No frontmatter. Overwrite the whole file. Never put these lines in a project's `AGENTS.md`.
-- Never change `delegation.model` or any other Hermes config without asking the user.
+- Detect. Routed: the detected models are the routes in `delegate_task`'s `option` enum, with their descriptions. `hermes delegation config --show` also lists each route's provider and model; if that command is not available, use the enum alone and say the provider check did not run. Single-model: the only models are the session model and `delegation.model` (`hermes config get delegation.model`; empty means the session model). Say that per-role models need the `advanced-delegation` plugin, and keep going.
+- Defaults. Routed: map each default slug in step 5 to a route with the Models section. A default whose family has no route becomes `inherit-parent`, and you tell the user which. Single-model: every value is `inherit-parent`.
+- Budget. Ask for it with `clarify`. Routed: move each value's effort as the skill says for slugs (each panel entry moves its own effort; poteto-mode's "panel seats keep their listed level" is about runtime, not setup), then map it with the steps in Models, so it lands on the nearest route of its family. A value with no route for its family becomes `inherit-parent`, and you say which. Route names outside the convention (no effort token) do not move.
+- Confirm. Show each role with its route, and the provider and model behind it from `hermes delegation config --show`.
+- Write. Write `~/.hermes/pstack-models.md` with the comment lines (copied as the skill gives them; this adapter maps their Cursor words when read), the `# defaults: 3` line, the `# budget` line, and one line per role from step 5, each value a route name, or `inherit-parent`. No frontmatter. Validation: every route name must be in the enum; the "xhigh or below" check applies only to names that carry an effort. Step 2's migration rules match slugs only, so they never touch a file of route names. Overwrite the whole file. Never put these lines in a project's `AGENTS.md`.
+- Never install the plugin, add or change routes, or change `delegation.*` or any other Hermes config without asking the user. If the user wants routes, show them the `model_map` example in pstack-hermes's README and let them apply it.
 
 ## Frontmatter
 
