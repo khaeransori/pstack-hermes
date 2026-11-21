@@ -259,6 +259,146 @@ Upstream ships these as dormant Cursor Automation sources (Slack bug triage, the
 """
 
 
+HUB = ROOT / "skills"
+HUB_REPO = "khaeransori/pstack-hermes"
+HUB_ADAPTER = "references/pstack-hermes-adapter.md"
+# Left out of the hub: make-bot-ui needs sudo to install Tailscale (the Skills Guard blocks it for
+# community installs), and statechart's test corpus is 377 fixture files no run reads.
+HUB_SKIP_SKILLS = {"make-bot-ui"}
+HUB_SKIP_PATHS = [re.compile(r"^skills/statechart/scripts/test/")]
+HUB_INTRO = ("`<pstack>` means the folder that holds `skills/`, `agents/`, and `docs/`. "
+             "In this install it is `~/.hermes/pstack`.")
+HUB_ROUTE = ("`read_file` `<pstack>/skills/<name>/SKILL.md` and follow it. These skills are not in the Hermes "
+             "skill index, so `skill_view` cannot find them. When you tell the user to type it, write `pstack <name>`.")
+
+
+def hub_adapter(dist_adapter, sha, version):
+    text = dist_adapter
+    for old, new in [
+        (HUB_INTRO, f"This copy ships inside a skill installed from the Hermes Skills Hub (`{HUB_REPO}`, pstack "
+                    f"{version}, upstream `{sha[:12]}`), so there is no `<pstack>` tree. Map its paths: "
+                    "`<pstack>/skills/<name>/` is the installed `<name>` skill folder (`skill_view(name)` shows its "
+                    "path); `<pstack>/agents/<file>` is `references/agents/<file>` in the skill you are running; "
+                    "`<pstack>/plugin.json` and `<pstack>/docs/` are on GitHub at "
+                    f"{REPO}/tree/{sha}/pstack. Give absolute paths to children."),
+        (HUB_ROUTE, "`skill_view(name)` and follow it. If it is not installed, ask the user to run "
+                    f"`hermes skills install {HUB_REPO}/skills/<name> --category pstack` (one-time). When you tell "
+                    "the user to type it, write `pstack <name>`."),
+    ]:
+        if old not in text:
+            raise SystemExit(f"FAIL hub: adapter text changed, update HUB_INTRO/HUB_ROUTE in generate.py: {old[:60]}")
+        text = text.replace(old, new)
+    return text
+
+
+def build_hub(files, sha):
+    """Hub layout for `hermes skills tap add` / install: one self-contained folder per skill under skills/."""
+    meta = json.loads(files["UPSTREAM.json"][0])
+    adapter = hub_adapter(files["docs/harness/hermes.md"][0].decode(), sha, meta["pstack_version"])
+    skills = sorted({k.split("/")[1] for k in files if re.match(r"skills/[^/]+/SKILL\.md$", k)} - HUB_SKIP_SKILLS)
+    agents = {k.split("/")[-1]: v for k, v in files.items() if k.startswith("agents/")}
+    hub = {}
+
+    def target(frm, href):
+        t = re.sub(r"[#?].*", "", href)
+        if not t or re.match(r"^[a-z][a-z0-9+.-]*:", t, re.I):
+            return None
+        return os.path.normpath(os.path.join(os.path.dirname(frm), t))
+
+    for s in skills:
+        own = {k: v for k, v in files.items()
+               if k.startswith(f"skills/{s}/") and not any(rx.match(k) for rx in HUB_SKIP_PATHS)}
+        text_all = "".join(b.decode("utf-8", "ignore") for k, (b, _) in own.items() if k.endswith(".md"))
+        for name, v in agents.items():
+            if name[:-3] in text_all:
+                own[f"skills/{s}/references/agents/{name}"] = v
+        own[f"skills/{s}/{HUB_ADAPTER}"] = (adapter.encode(), False)
+        for rel, (b, x) in list(own.items()):
+            if not rel.endswith(".md") or rel.endswith(HUB_ADAPTER):
+                continue
+
+            def fix(m, rel=rel):
+                href = m.group(1)
+                t = target(rel, href)
+                frag = href[len(re.sub(r"[#?].*", "", href)):]
+                if t is None or t in own or any(k.startswith(t + "/") for k in own):
+                    return m.group(0)
+                if t == "docs/harness/hermes.md":
+                    return f"]({os.path.relpath(f'skills/{s}/{HUB_ADAPTER}', os.path.dirname(rel))}{frag})"
+                sib = re.match(r"skills/([^/]+)(/.*)?$", t)
+                if sib and sib.group(1) in skills and sib.group(1) != s:
+                    return m.group(0)  # sibling skill: same category folder once both are installed
+                kind = "tree" if (UP / "pstack" / t).is_dir() else "blob"
+                return f"]({REPO}/{kind}/{sha}/pstack/{t}{frag})"
+
+            own[rel] = (LINK.sub(fix, b.decode()).encode(), x)
+        hub.update(own)
+    hub["skills/pstack/SKILL.md"] = (hub_router(files, skills, sha).encode(), False)
+    hub["skills/pstack/" + HUB_ADAPTER] = (adapter.encode(), False)
+    hub["skills/README.md"] = (hub_readme(skills, meta).encode(), False)
+    return {k[len("skills/"):]: v for k, v in hub.items()}
+
+
+def hub_router(files, skills, sha):
+    body = files["router/SKILL.md"][0].decode()
+    rows = "\n".join(l for l in body.split("\n") if re.match(r"- `[a-z0-9-]+`: ", l) and l.split("`")[1] in skills)
+    return f"""---
+name: pstack
+description: "Use when doing rigorous engineering with pstack (poteto-mode, correct, verification, unslop). Index of the pstack skills and how to run them in Hermes."
+{TARGETS['hermes']['frontmatter']}---
+
+# pstack (Hermes Skills Hub)
+
+Generated by pstack-hermes `generate.py` from cursor/plugins `{sha[:12]}`. Do not edit by hand.
+
+pstack is Lauren Tan's (poteto) skill set: push every correction up the pyramid (codebase > static analysis > verification > prose > human review), and make agents prove their work. The skill text is upstream, byte for byte, with one adapter line added.
+
+## How to run a pstack skill
+
+1. `read_file` [`{HUB_ADAPTER}`]({HUB_ADAPTER}) once per session. It maps every Cursor name in pstack to a Hermes tool.
+2. `skill_view(<name>)` and follow it. If it is not installed, ask the user to run `hermes skills install {HUB_REPO}/skills/<name> --category pstack`, or install the whole set with `hermes skills tap add {HUB_REPO}`.
+3. The user says "pstack <name>" or "/<name>" for these. For rigorous work with no named skill, start with `poteto-mode`; it picks a playbook.
+
+{TARGETS['hermes']['rules']}
+
+Not in the hub build: `make-bot-ui` (its Tailscale setup needs root) and the Benny automations. Get them from the full install at https://github.com/{HUB_REPO}.
+
+## Skills
+
+{rows}
+"""
+
+
+def hub_readme(skills, meta):
+    return f"""# pstack skills for the Hermes Skills Hub
+
+Generated by `generate.py` from cursor/plugins `{meta['commit'][:12]}` (pstack {meta['pstack_version']}). Do not edit by hand.
+
+{len(skills)} pstack skills plus the `pstack` index skill, one self-contained folder each, with the Hermes adapter in `{HUB_ADAPTER}`.
+
+```sh
+hermes skills tap add {HUB_REPO}                                  # browse and search all of them
+hermes skills install {HUB_REPO}/skills/poteto-mode --category pstack
+```
+
+Install into one category (`pstack`) so links between sibling skills resolve. For the full tree with the Benny automations, the guide, and `make-bot-ui`, use `install.sh` from the repo root instead.
+"""
+
+
+def write_tree(out, files):
+    shutil.rmtree(out, ignore_errors=True)
+    for rel, (b, x) in files.items():
+        p = out / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b)
+        p.chmod(0o755 if x else 0o644)
+
+
+def drift(out, files):
+    on_disk = {str(p.relative_to(out)): (p.read_bytes(), os.access(p, os.X_OK)) for p in walk(out)} if out.exists() else {}
+    return sorted(k for k in set(files) | set(on_disk) if files.get(k) != on_disk.get(k))
+
+
 def main():
     sync, check = "--sync" in sys.argv, "--check" in sys.argv
     sha = ensure_upstream(sync)
@@ -271,23 +411,28 @@ def main():
         if problems:
             failed = True
             continue
+        hub = build_hub(files, sha)
         if check:
-            on_disk = {str(p.relative_to(out)): (p.read_bytes(), os.access(p, os.X_OK)) for p in walk(out)} if out.exists() else {}
-            drift = sorted(k for k in set(files) | set(on_disk) if files.get(k) != on_disk.get(k))
-            for k in drift[:20]:
-                print("DRIFT", target, k)
-            if drift:
-                print(f"dist/ is out of date ({len(drift)} files). Run python3 generate.py")
+            hub_drift = drift(HUB, hub)
+            for k in hub_drift[:20]:
+                print("DRIFT hub", k)
+            if hub_drift:
+                print(f"skills/ is out of date ({len(hub_drift)} files). Run python3 generate.py")
                 failed = True
-            else:
-                print(f"dist/ up to date: {n} skills, upstream {sha[:12]}")
+        else:
+            write_tree(HUB, hub)
+            print(f"hub: {len({k.split('/')[0] for k in hub}) - 1} skills, {len(hub)} files in skills/")
+        if check:
+            dist_drift = drift(out, files)
+            for k in dist_drift[:20]:
+                print("DRIFT", target, k)
+            if dist_drift:
+                print(f"dist/ is out of date ({len(dist_drift)} files). Run python3 generate.py")
+                failed = True
+            elif not failed:
+                print(f"dist/ and skills/ up to date: {n} skills, upstream {sha[:12]}")
             continue
-        shutil.rmtree(out, ignore_errors=True)
-        for rel, (b, x) in files.items():
-            p = out / rel
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_bytes(b)
-            p.chmod(0o755 if x else 0o644)
+        write_tree(out, files)
         print(f"{target}: {n} skills, {wrapped} files with the adapter line, {len(files)} files, upstream {sha[:12]}")
     if failed:
         sys.exit(1)

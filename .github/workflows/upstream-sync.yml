@@ -1,0 +1,77 @@
+name: upstream sync
+
+# Daily: move UPSTREAM_PIN to cursor/plugins main when pstack/ changed, rebuild, check, commit, tag.
+# A failed build opens (or updates) one issue instead of committing.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether pstack changed upstream
+        id: diff
+        run: |
+          git clone -q https://github.com/cursor/plugins .upstream
+          pin=$(cat UPSTREAM_PIN)
+          head=$(git -C .upstream rev-parse origin/main)
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          if git -C .upstream diff --quiet "$pin" "$head" -- pstack; then
+            echo "pstack unchanged between ${pin:0:12} and ${head:0:12}; nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git -C .upstream diff --stat "$pin" "$head" -- pstack | tail -1
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild at the new pin
+        id: build
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          set -o pipefail
+          echo "${{ steps.diff.outputs.head }}" > UPSTREAM_PIN
+          { python3 generate.py && python3 generate.py --check; } 2>&1 | tee build.log
+
+      - name: Commit and tag
+        if: steps.diff.outputs.changed == 'true' && steps.build.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          version=$(python3 -c 'import json; print(json.load(open("dist/UPSTREAM.json"))["pstack_version"])')
+          head="${{ steps.diff.outputs.head }}"
+          git add UPSTREAM_PIN skills
+          git commit -m "Bump upstream pin to cursor/plugins ${head:0:8} (pstack ${version})"
+          tag=$(./next-tag.sh)
+          git tag -a "$tag" -m "pstack ${version}, cursor/plugins ${head}"
+          git push origin HEAD:main "$tag"
+          echo "Released $tag" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report a failed build
+        if: failure() && steps.build.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Upstream sync failed at cursor/plugins ${{ steps.diff.outputs.head }}"
+          body=$(printf 'The daily sync could not build the new upstream pin.\n\nUsually a new Cursor term needs a TERMS entry in generate.py and a row in adapter/hermes.md.\n\n```\n%s\n```\n\nRun: %s/%s/actions/runs/%s' \
+            "$(tail -60 build.log)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          existing=$(gh issue list --label upstream-sync --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh label create upstream-sync --color D93F0B --force >/dev/null
+            gh issue create --title "$title" --label upstream-sync --body "$body"
+          fi

@@ -20,7 +20,7 @@ cd ~/pstack-hermes
 ./install.sh
 ```
 
-This links `~/.hermes/pstack` (the full tree) and a single `pstack` skill in `~/.hermes/skills/software-development/`. The 61 upstream skills stay out of the Hermes index, so they cost no prompt tokens until one is used. `HERMES_HOME` is respected; for a profile, link the router into `~/.hermes/profiles/<name>/skills/` instead.
+This links `~/.hermes/pstack` (the full tree) and a single `pstack` skill in `~/.hermes/skills/software-development/`. The upstream skills stay out of the Hermes index, so they cost no prompt tokens until one is used. `HERMES_HOME` is respected; for a profile, link the router into `~/.hermes/profiles/<name>/skills/` instead.
 
 Use it by naming a skill, for example `pstack correct on this repo` or `poteto-mode: fix the scroll drift bug`.
 
@@ -28,10 +28,27 @@ Use it by naming a skill, for example `pstack correct on this repo` or `poteto-m
 
 ```sh
 python3 generate.py --sync    # move UPSTREAM_PIN to cursor/plugins main, rebuild, run the checks
-python3 generate.py --check   # verify dist/ matches the pin and every Cursor term has an adapter row
+python3 generate.py --check   # verify dist/ and skills/ match the pin and every Cursor term has an adapter row
 ```
 
 The symlinks point into `dist/`, so a rebuild updates the installed skills in place. The term check covers only the Cursor terms listed in `TERMS` in `generate.py`. If a new upstream term shows up in a run, add it to `TERMS`, add a row to the adapter, and rebuild.
+
+The `upstream sync` workflow does this every day. It moves the pin only when something under `pstack/` changed upstream, then rebuilds, runs `--check`, commits, and tags. When the build fails, usually because of a new Cursor term, it opens an `upstream-sync` issue instead of committing.
+
+## Releases
+
+Tags are `v<pstack version>-hermes.<N>`, for example `v0.15.46-hermes.1`. A new pstack version starts again at `.1`. Our own adapter or generator changes, and a pin move that keeps the pstack version, bump `N`. `./next-tag.sh` prints the next tag. The exact upstream commit is in `UPSTREAM_PIN` and `dist/UPSTREAM.json`.
+
+## Skills Hub
+
+`skills/` is a second build of the same pin for the [Hermes Skills Hub](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills). It is committed so the hub can read it. Each skill is a self-contained folder with the adapter in `references/pstack-hermes-adapter.md` and the agent files it uses in `references/agents/`. Every folder passes the Skills Guard as `safe` for community installs.
+
+```sh
+hermes skills tap add khaeransori/pstack-hermes
+hermes skills install khaeransori/pstack-hermes/skills/poteto-mode --category pstack
+```
+
+Install into one category (`pstack`) so links between sibling skills resolve. The hub build leaves out `make-bot-ui`, because its Tailscale setup needs `sudo`, the Benny automations, the guide, and statechart's test corpus. Use `install.sh` for the full tree. Unlike `install.sh`, each hub skill you install appears in the Hermes skill index.
 
 ## Per-role models (optional)
 
