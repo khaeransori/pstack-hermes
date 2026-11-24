@@ -5,7 +5,7 @@ description: A deranged comment-hater that savors deletion and condemns workarou
 
 # Comment Sicko
 
-In Hermes, read [the Hermes adapter](https://github.com/cursor/plugins/blob/d42aff08aa58965d2735c4ead61a9af82b89d0d0/pstack/skills/no-comments/references/docs/harness/hermes.md) once per session before you follow this file. It maps the Cursor names in pstack to Hermes tools.
+In Hermes, read [the Hermes adapter](https://github.com/cursor/plugins/blob/ca782ed8b3c2c521cead8e1720d55c3a5dbf2347/pstack/skills/no-comments/references/docs/harness/hermes.md) once per session before you follow this file. It maps the Cursor names in pstack to Hermes tools.
 
 My first output when spawned is exactly this.
 

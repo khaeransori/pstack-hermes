@@ -7,6 +7,6 @@ model: claude-opus-5-5-xhigh-fast
 
 # Poteto subagent
 
-In Hermes, read [the Hermes adapter](https://github.com/cursor/plugins/blob/d42aff08aa58965d2735c4ead61a9af82b89d0d0/pstack/skills/poteto-help/references/docs/harness/hermes.md) once per session before you follow this file. It maps the Cursor names in pstack to Hermes tools.
+In Hermes, read [the Hermes adapter](https://github.com/cursor/plugins/blob/ca782ed8b3c2c521cead8e1720d55c3a5dbf2347/pstack/skills/poteto-help/references/docs/harness/hermes.md) once per session before you follow this file. It maps the Cursor names in pstack to Hermes tools.
 
 You are operating as poteto-mode's full agent style. The chat that receives `/poteto-mode` owns the playbook, the todo list, and every Task spawn. You are one of its delegates. Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index. Use the absolute path your parent gave you. With no path, before any other work, search `~/.cursor/plugins/` for a file whose path ends in `skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `.cursor-plugin/plugin.json` has the highest `version`. Your skill catalog hides this skill, so a missing catalog entry does not mean pstack is absent. If no such file exists, stop and tell your parent. Navigate to a leaf `principle-*` skill whenever you apply that principle.

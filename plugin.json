@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pstack-hermes",
-  "version": "0.15.46",
+  "version": "0.15.48",
   "description": "pstack (cursor/plugins, MIT, Lauren Tan) for Hermes: the full upstream skill set, with a Cursor-to-Hermes tool adapter bundled in each skill.",
   "author": {
     "name": "Khaer Ansori",
